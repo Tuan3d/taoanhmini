@@ -61,38 +61,40 @@ document.addEventListener('DOMContentLoaded', () => {
         
         img.onload = () => {
             const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-
-            // Tính toán kích thước mới để đảm bảo không vượt quá 800px
-            if (width > 800 || height > 800) {
-                if (width > height) {
-                    height = Math.round((height * 800) / width);
-                    width = 800;
-                } else {
-                    width = Math.round((width * 800) / height);
-                    height = 800;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
 
-            // Chuyển đổi sang PNG và kiểm tra kích thước
+            // Giữ nguyên kích thước gốc của ảnh
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            // Vẽ ảnh gốc lên canvas với chất lượng cao nhất
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0);
+
+            // Chuyển đổi sang PNG với chất lượng cao nhất
             canvas.toBlob((blob) => {
                 if (blob.size > 2 * 1024 * 1024) { // Nếu lớn hơn 2MB
-                    alert('Ảnh sau khi xử lý vẫn lớn hơn 2MB. Vui lòng chọn ảnh khác.');
-                    return;
+                    // Thử nén ảnh với chất lượng thấp hơn
+                    canvas.toBlob((compressedBlob) => {
+                        if (compressedBlob.size > 2 * 1024 * 1024) {
+                            alert('Không thể xử lý ảnh này. Vui lòng chọn ảnh khác có kích thước nhỏ hơn.');
+                            return;
+                        }
+                        const resultUrl = URL.createObjectURL(compressedBlob);
+                        resultImage.src = resultUrl;
+                        resultSection.style.display = 'block';
+                        downloadBtn.href = resultUrl;
+                        downloadBtn.download = 'fixed_image.png';
+                    }, 'image/png', 0.8);
+                } else {
+                    const resultUrl = URL.createObjectURL(blob);
+                    resultImage.src = resultUrl;
+                    resultSection.style.display = 'block';
+                    downloadBtn.href = resultUrl;
+                    downloadBtn.download = 'fixed_image.png';
                 }
-
-                const resultUrl = canvas.toDataURL('image/png');
-                resultImage.src = resultUrl;
-                resultSection.style.display = 'block';
-                downloadBtn.href = resultUrl;
-                downloadBtn.download = 'fixed_image.png';
-            }, 'image/png');
+            }, 'image/png', 1.0);
         };
     });
 }); 
