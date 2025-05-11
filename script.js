@@ -43,14 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = files[0];
             if (file.type.startsWith('image/')) {
                 originalFile = file;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    previewImage.src = e.target.result;
-                    previewSection.style.display = 'block';
-                    fixButton.disabled = false;
-                    resultSection.style.display = 'none';
+                const objectUrl = URL.createObjectURL(file);
+                previewImage.src = objectUrl;
+                previewSection.style.display = 'block';
+                fixButton.disabled = false;
+                resultSection.style.display = 'none';
+
+                // Dọn dẹp URL khi không cần thiết
+                previewImage.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
                 };
-                reader.readAsDataURL(file);
             } else {
                 alert('Vui lòng chọn file ảnh!');
             }
@@ -70,12 +72,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!originalFile) return;
 
         try {
-            // Tạo canvas với kích thước gốc
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
             const img = new Image();
-
+            const objectUrl = URL.createObjectURL(originalFile);
+            
             img.onload = async () => {
+                // Tạo canvas với kích thước gốc
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
                 // Giữ nguyên kích thước gốc
                 canvas.width = img.width;
                 canvas.height = img.height;
@@ -135,9 +139,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 };
+
+                // Dọn dẹp URL
+                URL.revokeObjectURL(objectUrl);
             };
 
-            img.src = URL.createObjectURL(originalFile);
+            img.src = objectUrl;
         } catch (error) {
             console.error('Lỗi khi xử lý ảnh:', error);
             alert('Có lỗi xảy ra khi xử lý ảnh. Vui lòng thử lại.');
