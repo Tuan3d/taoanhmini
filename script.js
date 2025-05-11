@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultImage = document.getElementById('resultImage');
     const downloadBtn = document.getElementById('downloadBtn');
 
+    let originalFile = null;
+
     // Xử lý kéo thả
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -40,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (files.length > 0) {
             const file = files[0];
             if (file.type.startsWith('image/')) {
+                originalFile = file;
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     previewImage.src = e.target.result;
@@ -54,47 +57,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Hàm tạo MD5 hash
+    async function generateMD5(file) {
+        const buffer = await file.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     // Xử lý nút "Khắc phục ngay"
     fixButton.addEventListener('click', async () => {
-        const img = new Image();
-        img.src = previewImage.src;
-        
-        img.onload = () => {
+        if (!originalFile) return;
+
+        try {
+            // Tạo canvas với kích thước gốc
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+            const img = new Image();
 
-            // Giữ nguyên kích thước gốc của ảnh
-            canvas.width = img.width;
-            canvas.height = img.height;
+            img.onload = async () => {
+                // Giữ nguyên kích thước gốc
+                canvas.width = img.width;
+                canvas.height = img.height;
 
-            // Vẽ ảnh gốc lên canvas với chất lượng cao nhất
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0);
+                // Vẽ ảnh với chất lượng cao
+                ctx.drawImage(img, 0, 0);
 
-            // Chuyển đổi sang PNG với chất lượng cao nhất
-            canvas.toBlob((blob) => {
-                if (blob.size > 2 * 1024 * 1024) { // Nếu lớn hơn 2MB
-                    // Thử nén ảnh với chất lượng thấp hơn
-                    canvas.toBlob((compressedBlob) => {
-                        if (compressedBlob.size > 2 * 1024 * 1024) {
-                            alert('Không thể xử lý ảnh này. Vui lòng chọn ảnh khác có kích thước nhỏ hơn.');
-                            return;
+                // Chuyển đổi sang PNG
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+                
+                // Tạo file mới với tên gốc
+                const newFile = new File([blob], originalFile.name.replace(/\.[^/.]+$/, '.png'), {
+                    type: 'image/png'
+                });
+
+                // Tạo URL cho file mới
+                const resultUrl = URL.createObjectURL(newFile);
+                resultImage.src = resultUrl;
+                resultSection.style.display = 'block';
+
+                // Cập nhật nút tải xuống
+                downloadBtn.href = resultUrl;
+                downloadBtn.download = newFile.name;
+
+                // Thêm thuộc tính để lưu vào thư viện điện thoại
+                downloadBtn.setAttribute('download', '');
+                downloadBtn.setAttribute('target', '_blank');
+                
+                // Thêm sự kiện click để xử lý tải xuống trên điện thoại
+                downloadBtn.onclick = async (e) => {
+                    e.preventDefault();
+                    
+                    // Kiểm tra nếu là thiết bị di động
+                    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                        try {
+                            // Tạo blob URL
+                            const blobUrl = URL.createObjectURL(blob);
+                            
+                            // Tạo thẻ a ẩn
+                            const a = document.createElement('a');
+                            a.style.display = 'none';
+                            a.href = blobUrl;
+                            a.download = newFile.name;
+                            
+                            // Thêm vào DOM và click
+                            document.body.appendChild(a);
+                            a.click();
+                            
+                            // Dọn dẹp
+                            setTimeout(() => {
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(blobUrl);
+                            }, 100);
+                        } catch (error) {
+                            console.error('Lỗi khi tải xuống:', error);
+                            alert('Không thể tải xuống ảnh. Vui lòng thử lại.');
                         }
-                        const resultUrl = URL.createObjectURL(compressedBlob);
-                        resultImage.src = resultUrl;
-                        resultSection.style.display = 'block';
-                        downloadBtn.href = resultUrl;
-                        downloadBtn.download = 'fixed_image.png';
-                    }, 'image/png', 0.8);
-                } else {
-                    const resultUrl = URL.createObjectURL(blob);
-                    resultImage.src = resultUrl;
-                    resultSection.style.display = 'block';
-                    downloadBtn.href = resultUrl;
-                    downloadBtn.download = 'fixed_image.png';
-                }
-            }, 'image/png', 1.0);
-        };
+                    }
+                };
+            };
+
+            img.src = URL.createObjectURL(originalFile);
+        } catch (error) {
+            console.error('Lỗi khi xử lý ảnh:', error);
+            alert('Có lỗi xảy ra khi xử lý ảnh. Vui lòng thử lại.');
+        }
     });
 }); 
